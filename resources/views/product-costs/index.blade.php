@@ -146,7 +146,16 @@
         </div>
 
         <div class="mt-4">
-            {{ $productCosts->links() }}
+
+{{-- Remove or comment out this line --}}
+{{-- {{ $productCosts->links() }} --}}
+
+{{-- Optional: Add a simple message instead --}}
+<div class="mt-4 text-center text-gray-600">
+    Showing all {{ count($productCosts) }} products
+</div>            
+
+
         </div>
     </div>
 </div>

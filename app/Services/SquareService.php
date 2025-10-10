@@ -1,76 +1,157 @@
 <?php
 
-namespace App\Models;
+namespace App\Services;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use App\Models\ProductCost;
 
-class ProductCost extends Model
+class SquareService
 {
-    use HasFactory;
+    protected $accessToken;
+    protected $baseUrl;
 
-    protected $fillable = [
-        'product_uid',
-        'product_name',
-        'cost',
-        'description',
-        'is_variation',
-        'parent_product_id'
-    ];
-
-    protected $casts = [
-        'cost' => 'decimal:2',
-        'is_variation' => 'boolean'
-    ];
-
-    /**
-     * Get the parent product
-     */
-    public function parent()
+    public function __construct()
     {
-        return $this->belongsTo(ProductCost::class, 'parent_product_id', 'product_uid');
+        $this->accessToken = config('services.square.access_token');
+        $this->baseUrl = config('services.square.base_url', 'https://connect.squareupsandbox.com');
     }
 
-    /**
-     * Get variations of this product
-     */
-    public function variations()
+    public function getCatalog()
     {
-        return $this->hasMany(ProductCost::class, 'parent_product_id', 'product_uid');
-    }
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->accessToken,
+                'Content-Type' => 'application/json',
+            ])->get($this->baseUrl . '/v2/catalog/list');
 
-    /**
-     * Scope to get only main products (not variations)
-     */
-    public function scopeMainProducts($query)
-    {
-        return $query->where('is_variation', false);
-    }
-
-    /**
-     * Scope to get only variations
-     */
-    public function scopeVariations($query)
-    {
-        return $query->where('is_variation', true);
-    }
-
-    /**
-     * Scope to get products with their variations
-     */
-    public function scopeWithVariations($query)
-    {
-        return $query->with('variations');
-    }
-
-    /**
-     * Get display name with indication if it's a variation
-     */
-    public function getDisplayNameAttribute()
-    {
-        if ($this->is_variation) {
-            return "{$this->product_name} (Variation)";
+            if ($response->successful()) {
+                return $response->json();
+            } else {
+                Log::error('Square API Error: ' . $response->body());
+                return null;
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception fetching catalog: ' . $e->getMessage());
+            return null;
         }
-        return $this->product_name;
+    }
+
+    public function getOrders($startDate = null, $endDate = null)
+    {
+        try {
+            $query = [];
+            if ($startDate) {
+                $query['start_date'] = $startDate;
+            }
+            if ($endDate) {
+                $query['end_date'] = $endDate;
+            }
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->accessToken,
+                'Content-Type' => 'application/json',
+            ])->get($this->baseUrl . '/v2/orders', $query);
+
+            if ($response->successful()) {
+                return $response->json();
+            } else {
+                Log::error('Square Orders API Error: ' . $response->body());
+                return null;
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception fetching orders: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getProductCosts()
+    {
+        $catalog = $this->getCatalog();
+        $productCosts = [];
+
+        if ($catalog && isset($catalog['objects'])) {
+            foreach ($catalog['objects'] as $object) {
+                if ($object['type'] === 'ITEM') {
+                    $productId = $object['id'];
+                    $cost = 0; // Default cost
+
+                    // Extract cost from variations if available
+                    if (isset($object['item_data']['variations'])) {
+                        foreach ($object['item_data']['variations'] as $variation) {
+                            if (isset($variation['item_variation_data']['price_money']['amount'])) {
+                                $cost = $variation['item_variation_data']['price_money']['amount'] / 100;
+                                break;
+                            }
+                        }
+                    }
+
+                    $productCosts[] = new ProductCost($productId, $cost);
+                }
+            }
+        }
+
+        return $productCosts;
+    }
+
+    public function getLocation()
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->accessToken,
+                'Content-Type' => 'application/json',
+            ])->get($this->baseUrl . '/v2/locations');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['locations'][0] ?? null;
+            } else {
+                Log::error('Square Locations API Error: ' . $response->body());
+                return null;
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception fetching location: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function getTransactions($startDate = null, $endDate = null, $locationId = null)
+    {
+        try {
+            if (!$locationId) {
+                $location = $this->getLocation();
+                $locationId = $location['id'] ?? null;
+            }
+
+            if (!$locationId) {
+                throw new \Exception('No location ID available');
+            }
+
+            $query = [
+                'location_id' => $locationId,
+            ];
+
+            if ($startDate) {
+                $query['begin_time'] = $startDate;
+            }
+            if ($endDate) {
+                $query['end_time'] = $endDate;
+            }
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->accessToken,
+                'Content-Type' => 'application/json',
+            ])->get($this->baseUrl . '/v2/payments', $query);
+
+            if ($response->successful()) {
+                return $response->json();
+            } else {
+                Log::error('Square Payments API Error: ' . $response->body());
+                return null;
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception fetching transactions: ' . $e->getMessage());
+            return null;
+        }
     }
 }
