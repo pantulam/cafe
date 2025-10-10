@@ -45,11 +45,12 @@ Route::prefix('product-costs')->group(function () {
     Route::get('/{id}/edit', [ProductCostController::class, 'edit'])->name('product-costs.edit');
     Route::put('/{id}', [ProductCostController::class, 'update'])->name('product-costs.update');
     Route::delete('/{id}', [ProductCostController::class, 'destroy'])->name('product-costs.destroy');
+    Route::get('/bulk-edit', [ProductCostController::class, 'bulkEdit'])->name('product-costs.bulk-edit'); // ADDED THIS ROUTE
     Route::post('/bulk-update', [ProductCostController::class, 'bulkUpdate'])->name('product-costs.bulk-update');
     Route::get('/export', [ProductCostController::class, 'export'])->name('product-costs.export');
     Route::post('/import', [ProductCostController::class, 'import'])->name('product-costs.import');
-    Route::post('/import-from-square', [ProductCostController::class, 'importFromSquare'])->name('product-costs.import-from-square'); // ADDED THIS ROUTE
-    Route::get('/sync', [ProductCostController::class, 'syncFromSquare'])->name('product-costs.sync');
+    Route::post('/import-from-square', [ProductCostController::class, 'importFromSquare'])->name('product-costs.import-from-square');
+    Route::get('/sync-from-square', [ProductCostController::class, 'syncFromSquare'])->name('product-costs.sync-from-square');
 });
 
 // Square synchronization routes
