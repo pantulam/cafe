@@ -709,4 +709,286 @@ class SquareService
         
         return $this->convertToEST($utcTime)->format('Y-m-d');
     }
+
+    /**
+     * Get kitchen orders with detailed item information for the kitchen screen
+     */
+    public function getKitchenOrders($hoursBack = 24)
+    {
+        try {
+            // Calculate time range (last X hours)
+            $endDate = Carbon::now('America/New_York');
+            $startDate = Carbon::now('America/New_York')->subHours($hoursBack);
+            
+            $startDateFormatted = $startDate->format('Y-m-d');
+            $endDateFormatted = $endDate->format('Y-m-d');
+            
+            Log::info('Fetching kitchen orders', [
+                'hours_back' => $hoursBack,
+                'start_date' => $startDateFormatted,
+                'end_date' => $endDateFormatted
+            ]);
+
+            // Get transactions for the time period
+            $transactions = $this->getTransactions($startDateFormatted, $endDateFormatted);
+            
+            // Process transactions for kitchen display
+            $kitchenOrders = [];
+            foreach ($transactions as $transaction) {
+                $orderDetails = $this->processTransactionForKitchen($transaction);
+                if ($orderDetails) {
+                    $kitchenOrders[] = $orderDetails;
+                }
+            }
+
+            // Sort by creation time (newest first)
+            usort($kitchenOrders, function($a, $b) {
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+
+            Log::info('Kitchen orders processed', [
+                'total_orders' => count($kitchenOrders),
+                'time_range' => "$hoursBack hours"
+            ]);
+
+            return $kitchenOrders;
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching kitchen orders', [
+                'error' => $e->getMessage(),
+                'hours_back' => $hoursBack
+            ]);
+            throw new \Exception('Error fetching kitchen orders: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process transaction for kitchen display with item details
+     */
+    protected function processTransactionForKitchen($transaction)
+    {
+        try {
+            $orderId = $transaction['order_id'] ?? null;
+            if (!$orderId) {
+                return null;
+            }
+
+            // Get detailed order information
+            $order = $this->getOrderDetails($orderId);
+            if (!$order) {
+                return null;
+            }
+
+            $lineItems = $order['line_items'] ?? [];
+            $processedItems = [];
+
+            foreach ($lineItems as $lineItem) {
+                $itemDetails = $this->processLineItemForKitchen($lineItem);
+                if ($itemDetails) {
+                    $processedItems[] = $itemDetails;
+                }
+            }
+
+            // Skip orders with no valid items
+            if (empty($processedItems)) {
+                return null;
+            }
+
+            return [
+                'id' => $transaction['id'] ?? $orderId,
+                'order_id' => $orderId,
+                'created_at' => $transaction['created_at'] ?? $order['created_at'] ?? now(),
+                'created_at_est' => $this->formatESTTime($transaction['created_at'] ?? $order['created_at'] ?? now(), 'M j, Y g:i A'),
+                'total_amount' => $transaction['total_money']['amount'] ?? 0,
+                'total_money_display' => $this->formatMoney($transaction['total_money'] ?? []),
+                'items' => $processedItems,
+                'status' => $transaction['status'] ?? 'COMPLETED',
+                'customer_name' => $this->getCustomerName($transaction, $order),
+                'tender_type' => $this->getTenderType($transaction)
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error processing transaction for kitchen', [
+                'transaction_id' => $transaction['id'] ?? 'unknown',
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Process line item with modifiers for kitchen display
+     */
+    protected function processLineItemForKitchen($lineItem)
+    {
+        $itemName = $lineItem['name'] ?? 'Unknown Item';
+        $quantity = $lineItem['quantity'] ?? 1;
+        $variationName = $lineItem['variation_name'] ?? '';
+        $note = $lineItem['note'] ?? '';
+
+        // Process modifiers
+        $modifiers = [];
+        if (isset($lineItem['modifiers']) && is_array($lineItem['modifiers'])) {
+            foreach ($lineItem['modifiers'] as $modifier) {
+                $modifierName = $modifier['name'] ?? 'Unknown Modifier';
+                $modifierQuantity = $modifier['quantity'] ?? '1';
+                
+                $modifiers[] = [
+                    'name' => $modifierName,
+                    'quantity' => $modifierQuantity,
+                    'display_text' => $modifierQuantity > 1 ? "{$modifierName} (x{$modifierQuantity})" : $modifierName
+                ];
+            }
+        }
+
+        // Build full item name with variation
+        $fullItemName = $itemName;
+        if ($variationName) {
+            $fullItemName .= " - {$variationName}";
+        }
+
+        // Prepare description (limit to 100 chars)
+        $description = $this->limitDescription($note, 100);
+
+        return [
+            'name' => $fullItemName,
+            'base_name' => $itemName,
+            'variation_name' => $variationName,
+            'quantity' => $quantity,
+            'modifiers' => $modifiers,
+            'note' => $note,
+            'description' => $description,
+            'has_modifiers' => !empty($modifiers),
+            'has_note' => !empty($note)
+        ];
+    }
+
+    /**
+     * Limit description to specified length
+     */
+    protected function limitDescription($text, $length = 100)
+    {
+        if (empty($text)) {
+            return '';
+        }
+
+        if (strlen($text) <= $length) {
+            return $text;
+        }
+
+        return substr($text, 0, $length) . '...';
+    }
+
+    /**
+     * Format money amount for display
+     */
+    protected function formatMoney($moneyArray)
+    {
+        if (empty($moneyArray) || !isset($moneyArray['amount'])) {
+            return '$0.00';
+        }
+
+        $amount = $moneyArray['amount'] / 100;
+        $currency = $moneyArray['currency'] ?? 'USD';
+
+        return '$' . number_format($amount, 2);
+    }
+
+    /**
+     * Extract customer name from transaction or order
+     */
+    protected function getCustomerName($transaction, $order)
+    {
+        // Check transaction for customer information
+        if (isset($transaction['customer_id'])) {
+            $customer = $this->getCustomerDetails($transaction['customer_id']);
+            if ($customer && isset($customer['given_name'])) {
+                return $customer['given_name'] . ' ' . ($customer['family_name'] ?? '');
+            }
+        }
+
+        // Check order for customer information
+        if (isset($order['customer_id'])) {
+            $customer = $this->getCustomerDetails($order['customer_id']);
+            if ($customer && isset($customer['given_name'])) {
+                return $customer['given_name'] . ' ' . ($customer['family_name'] ?? '');
+            }
+        }
+
+        return 'Walk-in Customer';
+    }
+
+    /**
+     * Get customer details from Square
+     */
+    protected function getCustomerDetails($customerId)
+    {
+        try {
+            $cacheKey = "square_customer_{$customerId}";
+            
+            $cachedCustomer = Cache::get($cacheKey);
+            if ($cachedCustomer) {
+                return $cachedCustomer;
+            }
+
+            $response = Http::withHeaders($this->headers)
+                ->timeout(30)
+                ->get($this->baseUrl . '/v2/customers/' . $customerId);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $customer = $data['customer'] ?? null;
+                
+                if ($customer) {
+                    Cache::put($cacheKey, $customer, 60 * 60); // Cache for 1 hour
+                }
+                
+                return $customer;
+            }
+
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching customer details', [
+                'customer_id' => $customerId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Get tender type from transaction
+     */
+    protected function getTenderType($transaction)
+    {
+        $tenderTypes = [];
+        
+        if (isset($transaction['tenders']) && is_array($transaction['tenders'])) {
+            foreach ($transaction['tenders'] as $tender) {
+                $type = $tender['type'] ?? 'UNKNOWN';
+                $tenderTypes[] = str_replace('_', ' ', $type);
+            }
+        }
+
+        return !empty($tenderTypes) ? implode(', ', $tenderTypes) : 'CARD';
+    }
+
+    /**
+     * Clear kitchen orders cache
+     */
+    public function clearKitchenCache()
+    {
+        $cacheKeys = [
+            'kitchen_orders_24h',
+            'kitchen_orders_12h',
+            'kitchen_orders_6h'
+        ];
+
+        foreach ($cacheKeys as $cacheKey) {
+            Cache::forget($cacheKey);
+        }
+
+        Log::info('Kitchen cache cleared');
+    }
 }

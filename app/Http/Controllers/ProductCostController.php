@@ -111,9 +111,37 @@ class ProductCostController extends Controller
         }
     }
 
+
+
+/**
+ * Import products from Square
+ */
+public function importFromSquare(Request $request)
+{
+    try {
+        $squareService = app(SquareService::class);
+        $result = $squareService->syncProductsFromCatalog();
+
+        return redirect()->route('product-costs.index')
+            ->with('success', "Successfully imported {$result['synced']} new products and updated {$result['updated']} existing products from Square.");
+            
+    } catch (\Exception $e) {
+        Log::error('Error importing products from Square', [
+            'error' => $e->getMessage()
+        ]);
+
+        return redirect()->route('product-costs.index')
+            ->with('error', 'Error importing products from Square: ' . $e->getMessage());
+    }
+}
+
+
+
+
     /**
      * Show products from Square catalog for initial import
      */
+/*
     public function importFromSquare()
     {
         try {
@@ -127,6 +155,7 @@ class ProductCostController extends Controller
                 ->with('error', 'Error fetching products from Square: ' . $e->getMessage());
         }
     }
+*/
 
     /**
      * Bulk import products from Square catalog
