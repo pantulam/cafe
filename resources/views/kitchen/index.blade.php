@@ -1,535 +1,439 @@
-@extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h3 class="card-title mb-0">
-                                <i class="fas fa-utensils me-2"></i>Kitchen Display
-                            </h3>
-                            <p class="mb-0 opacity-75">Campus Cafe - Real-time Order Management</p>
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <div class="d-flex align-items-center justify-content-end gap-3">
-                                <div id="currentTime" class="fw-bold fs-5 text-white"></div>
-                                <div class="bg-white text-dark px-3 py-2 rounded-pill">
-                                    <i class="fas fa-store me-2"></i>Active
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Display - Campus Cafe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta http-equiv="refresh" content="30">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Kitchen & Order Display</h1>
+            <p class="text-xl text-gray-600">Campus Cafe - Real-time Management</p>
+            <div class="mt-4 flex justify-center items-center space-x-4">
+                <div class="flex items-center">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-2"></div>
+                    <span class="text-green-600 font-semibold">Live</span>
                 </div>
-
-                <div class="card-body p-0">
-                    <!-- Controls Bar -->
-                    <div class="controls-bar bg-light p-3 border-bottom">
-                        <div class="row align-items-center">
-                            <div class="col-md-6">
-                                <div class="d-flex align-items-center gap-3">
-                                    <button id="refreshBtn" class="btn btn-success">
-                                        <i class="fas fa-sync-alt me-2"></i>Refresh Orders
-                                    </button>
-                                    <div class="time-filter d-flex gap-2">
-                                        <button class="btn btn-outline-primary time-btn active" data-hours="6">Last 6 Hours</button>
-                                        <button class="btn btn-outline-primary time-btn" data-hours="12">Last 12 Hours</button>
-                                        <button class="btn btn-outline-primary time-btn" data-hours="24">Last 24 Hours</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 text-end">
-                                <div id="lastUpdated" class="last-updated bg-white px-3 py-2 rounded">
-                                    <i class="fas fa-clock me-2"></i>Last updated: {{ now()->format('M j, Y g:i A') }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Orders Container -->
-                    <div id="ordersContainer" class="p-4">
-                        @if(isset($error))
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                <strong><i class="fas fa-exclamation-triangle me-2"></i>Error:</strong> {{ $error }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        @endif
-
-                        @if(count($orders) > 0)
-                            <div class="orders-grid">
-                                @foreach($orders as $order)
-                                    <div class="order-card">
-                                        <div class="order-header">
-                                            <div class="row align-items-center">
-                                                <div class="col-md-8">
-                                                    <h5 class="mb-1">
-                                                        <i class="fas fa-receipt me-2"></i>Order #{{ substr($order['order_id'], -8) }}
-                                                    </h5>
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-clock me-1"></i>{{ $order['created_at_est'] }}
-                                                    </small>
-                                                </div>
-                                                <div class="col-md-4 text-end">
-                                                    <span class="badge bg-success fs-6">{{ $order['total_money_display'] }}</span>
-                                                </div>
-                                            </div>
-                                            <div class="order-meta mt-2">
-                                                <span class="customer-badge">{{ $order['customer_name'] }}</span>
-                                                <span class="status-badge ms-2">{{ $order['tender_type'] }}</span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="order-body">
-                                            @foreach($order['items'] as $item)
-                                                <div class="item-card">
-                                                    <div class="row align-items-start">
-                                                        <div class="col-md-8">
-                                                            <h6 class="mb-1">
-                                                                <span class="quantity-badge">{{ $item['quantity'] }}</span>
-                                                                {{ $item['name'] }}
-                                                                @if($item['variation_name'])
-                                                                    <small class="text-muted">({{ $item['variation_name'] }})</small>
-                                                                @endif
-                                                            </h6>
-                                                            
-                                                            <!-- Square Item Description -->
-                                                            @if($item['has_item_description'])
-                                                                <div class="square-description mb-2">
-                                                                    <small class="text-muted">
-                                                                        <i class="fas fa-info-circle me-1"></i>
-                                                                        {{ $item['item_description'] }}
-                                                                    </small>
-                                                                </div>
-                                                            @endif
-                                                            
-                                                            @if($item['has_modifiers'])
-                                                                <div class="modifiers mt-1">
-                                                                    @foreach($item['modifiers'] as $modifier)
-                                                                        <span class="modifier-badge">
-                                                                            <i class="fas fa-plus me-1"></i>{{ $modifier['display_text'] }}
-                                                                        </span>
-                                                                    @endforeach
-                                                                </div>
-                                                            @endif
-                                                            
-                                                            @if($item['has_note'])
-                                                                <div class="description-text mt-2">
-                                                                    <strong><i class="fas fa-sticky-note me-1"></i>Note:</strong> 
-                                                                    {{ $item['note_description'] }}
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                        <div class="col-md-4 text-end">
-                                                            <span class="text-success fw-bold">
-                                                                @if(isset($item['base_price_display']))
-                                                                    {{ $item['base_price_display'] }}
-                                                                @else
-                                                                    $0.00
-                                                                @endif
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div class="no-orders text-center py-5">
-                                <i class="fas fa-clipboard-list fa-3x mb-3 text-muted"></i>
-                                <h4>No Recent Orders</h4>
-                                <p class="text-muted">No completed orders found in the selected time period.</p>
-                                <button id="refreshNowBtn" class="btn btn-success mt-3">
-                                    <i class="fas fa-sync-alt me-2"></i>Check for New Orders
-                                </button>
-                            </div>
-                        @endif
-                    </div>
+                <div class="text-gray-500">
+                    Last updated: {{ now()->setTimezone('America/New_York')->format('M j, Y g:i A') }} EST
                 </div>
             </div>
         </div>
-    </div>
-</div>
-@endsection
 
-@push('styles')
-<style>
-    .orders-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-        gap: 20px;
-    }
-    
-    .order-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        border-left: 6px solid #28a745;
-        transition: all 0.3s ease;
-        overflow: hidden;
-    }
-    
-    .order-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    }
-    
-    .order-header {
-        background: #f8f9fa;
-        padding: 1rem 1.5rem;
-        border-bottom: 2px solid #e9ecef;
-    }
-    
-    .order-body {
-        padding: 1.5rem;
-    }
-    
-    .item-card {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-left: 4px solid #007bff;
-    }
-    
-    .quantity-badge {
-        background: #dc3545;
-        color: white;
-        border-radius: 50%;
-        width: 28px;
-        height: 28px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.9rem;
-        font-weight: bold;
-        margin-right: 0.8rem;
-    }
-    
-    .modifier-badge {
-        background: #6c757d;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        margin-right: 0.5rem;
-        margin-bottom: 0.5rem;
-        display: inline-block;
-    }
-    
-    .description-text {
-        color: #6c757d;
-        font-size: 0.9rem;
-        line-height: 1.4;
-        background: white;
-        padding: 0.5rem;
-        border-radius: 5px;
-        border-left: 3px solid #dc3545;
-        margin-top: 0.5rem;
-    }
-    
-    .square-description {
-        color: #4b5563;
-        font-size: 1.4rem;
-        line-height: 1.4;
-        background: #f0f9ff;
-        padding: 0.5rem 0.75rem;
-        border-radius: 6px;
-        border-left: 3px solid #3b82f6;
-        margin-bottom: 0.5rem;
-        border: 1px solid #e0f2fe;
-    }
-    
-    .square-description small {
-        display: block;
-        max-width: 100%;
-        word-wrap: break-word;
-    }
-    
-    .square-description i.fa-info-circle {
-        color: #3b82f6;
-    }
-    
-    .controls-bar {
-        background: #f8f9fa !important;
-    }
-    
-    .last-updated {
-        background: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        color: #495057;
-        border: 2px solid #e9ecef;
-    }
-    
-    .no-orders {
-        text-align: center;
-        padding: 3rem;
-        color: #6c757d;
-    }
-    
-    .customer-badge {
-        background: #495057;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        display: inline-block;
-    }
-    
-    .status-badge {
-        background: #28a745;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 15px;
-        font-size: 0.8rem;
-    }
-    
-    .time-btn.active {
-        background-color: #007bff;
-        color: white;
-    }
-    
-    @media (max-width: 768px) {
-        .orders-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        .controls-bar .row {
-            flex-direction: column;
-            gap: 1rem;
-        }
-        
-        .time-filter {
-            justify-content: center;
-        }
-        
-        .order-header .row,
-        .item-card .row {
-            flex-direction: column;
-        }
-        
-        .item-card .col-md-4.text-end {
-            text-align: left !important;
-            margin-top: 0.5rem;
-        }
-    }
-</style>
-@endpush
+        <!-- Debug Links -->
+        <div class="flex justify-center space-x-4 mb-6">
+            <a href="/debug-kitchen-orders" class="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600" target="_blank">
+                Debug Orders
+            </a>
+            <a href="/debug-square" class="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600" target="_blank">
+                Debug Square
+            </a>
+            <a href="/transactions" class="bg-purple-500 text-white px-4 py-2 rounded text-sm hover:bg-purple-600">
+                View Transactions
+            </a>
+        </div>
 
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const refreshBtn = document.getElementById('refreshBtn');
-        const refreshNowBtn = document.getElementById('refreshNowBtn');
-        const ordersContainer = document.getElementById('ordersContainer');
-        const lastUpdated = document.getElementById('lastUpdated');
-        const currentTime = document.getElementById('currentTime');
-        const timeButtons = document.querySelectorAll('.time-btn');
-        let currentHours = 6;
-        let isRefreshing = false;
+        @if(count($orders) > 0)
+            <!-- Statistics -->
+            @php
+                $activeOrders = collect($orders)->whereIn('state', ['OPEN', 'IN_PROGRESS']);
+                $completedOrders = collect($orders)->where('state', 'COMPLETED');
+                $canceledOrders = collect($orders)->where('state', 'CANCELED');
+            @endphp
 
-        // Update current time
-        function updateTime() {
-            const now = new Date();
-            currentTime.textContent = now.toLocaleTimeString('en-US', {
-                hour12: true,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-        }
-        
-        updateTime();
-        setInterval(updateTime, 1000);
-
-        // Time filter buttons
-        timeButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                timeButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                currentHours = parseInt(this.dataset.hours);
-                refreshOrders();
-            });
-        });
-
-        // Refresh orders function
-        function refreshOrders() {
-            if (isRefreshing) return;
-            
-            isRefreshing = true;
-            refreshBtn.disabled = true;
-            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Refreshing...';
-            
-            if (refreshNowBtn) {
-                refreshNowBtn.disabled = true;
-                refreshNowBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Checking...';
-            }
-
-            fetch('{{ route("kitchen.refresh") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify({ hours: currentHours })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    updateOrdersDisplay(data.orders);
-                    lastUpdated.innerHTML = `<i class="fas fa-clock me-2"></i>Last updated: ${data.last_updated}`;
-                } else {
-                    showError('Error refreshing orders: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showError('Error refreshing orders. Please try again.');
-            })
-            .finally(() => {
-                isRefreshing = false;
-                refreshBtn.disabled = false;
-                refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Refresh Orders';
-                
-                if (refreshNowBtn) {
-                    refreshNowBtn.disabled = false;
-                    refreshNowBtn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Check for New Orders';
-                }
-            });
-        }
-
-        // Update orders display
-        function updateOrdersDisplay(orders) {
-            if (!orders || orders.length === 0) {
-                ordersContainer.innerHTML = `
-                    <div class="no-orders text-center py-5">
-                        <i class="fas fa-clipboard-list fa-3x mb-3 text-muted"></i>
-                        <h4>No Recent Orders</h4>
-                        <p class="text-muted">No completed orders found in the selected time period.</p>
-                        <button id="refreshNowBtn" class="btn btn-success mt-3" onclick="refreshOrders()">
-                            <i class="fas fa-sync-alt me-2"></i>Check for New Orders
-                        </button>
-                    </div>
-                `;
-                return;
-            }
-
-            let ordersHtml = '<div class="orders-grid">';
-            
-            orders.forEach(order => {
-                let itemsHtml = '';
-                
-                order.items.forEach(item => {
-                    let modifiersHtml = '';
-                    if (item.has_modifiers && item.modifiers.length > 0) {
-                        modifiersHtml = '<div class="modifiers mt-1">';
-                        item.modifiers.forEach(modifier => {
-                            modifiersHtml += `
-                                <span class="modifier-badge">
-                                    <i class="fas fa-plus me-1"></i>${modifier.display_text}
-                                </span>
-                            `;
-                        });
-                        modifiersHtml += '</div>';
-                    }
-                    
-                    const squareDescriptionHtml = item.has_item_description ? 
-                        `<div class="square-description mb-2">
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
-                                ${item.item_description}
-                            </small>
-                        </div>` : '';
-                    
-                    const noteHtml = item.has_note ? 
-                        `<div class="description-text mt-2">
-                            <strong><i class="fas fa-sticky-note me-1"></i>Note:</strong> 
-                            ${item.note_description}
-                        </div>` : '';
-                    
-                    const priceHtml = item.base_price_display ? 
-                        item.base_price_display : '$0.00';
-                    
-                    itemsHtml += `
-                        <div class="item-card">
-                            <div class="row align-items-start">
-                                <div class="col-md-8">
-                                    <h6 class="mb-1">
-                                        <span class="quantity-badge">${item.quantity}</span>
-                                        ${item.name}
-                                        ${item.variation_name ? `<small class="text-muted">(${item.variation_name})</small>` : ''}
-                                    </h6>
-                                    ${squareDescriptionHtml}
-                                    ${modifiersHtml}
-                                    ${noteHtml}
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    <span class="text-success fw-bold">${priceHtml}</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                ordersHtml += `
-                    <div class="order-card">
-                        <div class="order-header">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <h5 class="mb-1">
-                                        <i class="fas fa-receipt me-2"></i>Order #${order.order_id.substring(order.order_id.length - 8)}
-                                    </h5>
-                                    <small class="text-muted">
-                                        <i class="fas fa-clock me-1"></i>${order.created_at_est}
-                                    </small>
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    <span class="badge bg-success fs-6">${order.total_money_display}</span>
-                                </div>
-                            </div>
-                            <div class="order-meta mt-2">
-                                <span class="customer-badge">${order.customer_name}</span>
-                                <span class="status-badge ms-2">${order.tender_type}</span>
-                            </div>
-                        </div>
-                        <div class="order-body">
-                            ${itemsHtml}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            ordersHtml += '</div>';
-            ordersContainer.innerHTML = ordersHtml;
-        }
-
-        // Show error message
-        function showError(message) {
-            const alertHtml = `
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <strong><i class="fas fa-exclamation-triangle me-2"></i>Error:</strong> ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600">{{ count($orders) }}</div>
+                    <div class="text-sm text-gray-600">Total Orders (24h)</div>
                 </div>
-            `;
-            ordersContainer.innerHTML = alertHtml + ordersContainer.innerHTML;
-        }
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-yellow-600">{{ $activeOrders->count() }}</div>
+                    <div class="text-sm text-gray-600">Active Orders</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600">{{ $completedOrders->count() }}</div>
+                    <div class="text-sm text-gray-600">Completed</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-red-600">{{ $canceledOrders->count() }}</div>
+                    <div class="text-sm text-gray-600">Canceled</div>
+                </div>
+            </div>
 
-        // Event listeners
-        refreshBtn.addEventListener('click', refreshOrders);
-        if (refreshNowBtn) {
-            refreshNowBtn.addEventListener('click', refreshOrders);
-        }
+            <!-- Active Orders Section -->
+            @if($activeOrders->count() > 0)
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Active Orders</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        @foreach($activeOrders as $order)
+                            <div class="bg-white rounded-lg shadow-lg border-l-4 
+                                {{ $order['state'] === 'OPEN' ? 'border-blue-500' : 'border-yellow-500' }}">
+                                <div class="p-4">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 class="font-semibold text-lg">Order #{{ substr($order['id'], -8) }}</h3>
+                                            <p class="text-sm text-gray-600">{{ $order['customer_name'] }}</p>
+                                        </div>
+                                        <span class="px-2 py-1 text-xs font-semibold rounded
+                                            {{ $order['state'] === 'OPEN' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                            {{ $order['state'] }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <p class="text-sm text-gray-500">
+                                            {{ \Carbon\Carbon::parse($order['created_at'])->setTimezone('America/New_York')->format('M j, g:i A') }} EST
+                                        </p>
+                                        @if($order['note'])
+                                            <p class="text-sm text-red-600 mt-1">Note: {{ $order['note'] }}</p>
+                                        @endif
+                                    </div>
 
-        // Auto-refresh every 30 seconds
-        setInterval(refreshOrders, 30000);
-        
-        // Make refreshOrders available globally for onclick handlers
-        window.refreshOrders = refreshOrders;
-    });
-</script>
-@endpush
+                                    <div class="space-y-2 mb-4">
+                                        @foreach($order['line_items'] as $item)
+                                            <div class="flex justify-between items-start py-2 border-b border-gray-100">
+                                                <div class="flex-1">
+                                                    <div class="flex items-start">
+                                                        <span class="font-medium bg-gray-100 px-2 py-1 rounded text-sm mr-2">
+                                                            {{ $item['quantity'] }}x
+                                                        </span>
+                                                        <div class="flex-1">
+                                                            <div class="font-medium text-gray-800">{{ $item['name'] }}</div>
+                                                            @if($item['description'] ?? false)
+                                                                <div class="text-xs text-gray-600 mt-1">{{ $item['description'] }}</div>
+                                                            @endif
+                                                            @if($item['variation_name'])
+                                                                <div class="text-sm text-gray-600">({{ $item['variation_name'] }})</div>
+                                                            @endif
+                                                            @if($item['note'])
+                                                                <div class="text-sm text-red-600 mt-1">Note: {{ $item['note'] }}</div>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    <div class="pt-3 border-t border-gray-200">
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-semibold">Total: ${{ number_format(($order['total_money']['amount'] ?? 0) / 100, 2) }}</span>
+                                            @if($order['state'] === 'OPEN')
+                                                <form action="{{ route('kitchen.orders.update', $order['id']) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="state" value="IN_PROGRESS">
+                                                    <button type="submit" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600">
+                                                        Start Cooking
+                                                    </button>
+                                                </form>
+                                            @elseif($order['state'] === 'IN_PROGRESS')
+                                                <form action="{{ route('kitchen.orders.update', $order['id']) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="state" value="COMPLETED">
+                                                    <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                                                        Complete
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- Recent Completed Orders Section -->
+            @if($completedOrders->count() > 0)
+                <div class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Recently Completed</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        @foreach($completedOrders->take(12) as $order)
+                            <div class="bg-white rounded-lg shadow border-l-4 border-green-500 opacity-80">
+                                <div class="p-4">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 class="font-semibold text-lg">Order #{{ substr($order['id'], -8) }}</h3>
+                                            <p class="text-sm text-gray-600">{{ $order['customer_name'] }}</p>
+                                        </div>
+                                        <span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">
+                                            COMPLETED
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <p class="text-sm text-gray-500">
+                                            Completed: {{ \Carbon\Carbon::parse($order['completed_at'] ?? $order['created_at'])->setTimezone('America/New_York')->format('M j, g:i A') }} EST
+                                        </p>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        @foreach($order['line_items'] as $item)
+                                            <div class="flex justify-between items-start py-2 border-b border-gray-100">
+                                                <div class="flex-1">
+                                                    <div class="flex items-start">
+                                                        <span class="font-medium bg-gray-100 px-2 py-1 rounded text-sm mr-2">
+                                                            {{ $item['quantity'] }}x
+                                                        </span>
+                                                        <div class="flex-1">
+                                                            <div class="font-medium text-gray-800">{{ $item['name'] }}</div>
+                                                            @if($item['description'] ?? false)
+                                                                <div class="text-xs text-gray-600 mt-1">{{ $item['description'] }}</div>
+                                                            @endif
+                                                            @if($item['variation_name'])
+                                                                <div class="text-sm text-gray-600">({{ $item['variation_name'] }})</div>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    <div class="mt-3 pt-3 border-t border-gray-200">
+                                        <span class="font-semibold">Total: ${{ number_format(($order['total_money']['amount'] ?? 0) / 100, 2) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <!-- No Active Orders Message -->
+            @if($activeOrders->count() === 0 && $completedOrders->count() > 0)
+                <div class="text-center py-8 bg-yellow-50 rounded-lg">
+                    <h3 class="text-xl font-semibold text-yellow-800 mb-2">No Active Orders</h3>
+                    <p class="text-yellow-600">All orders from the last 24 hours have been completed.</p>
+                </div>
+            @endif
+
+        @elseif(count($transactions) > 0)
+            <!-- Transactions Display (Fallback) -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Latest Orders & Payments</h2>
+                <p class="text-gray-600 mb-4">Showing recent transactions from Square</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    @foreach(array_slice($transactions, 0, 12) as $transactionData)
+                        @php
+                            $transaction = $transactionData['payment'];
+                            $order = $transactionData['order'] ?? null;
+                            $lineItems = $transactionData['line_items'] ?? [];
+                            $hasOrderDetails = !empty($lineItems);
+                        @endphp
+                        
+                        <div class="bg-white rounded-lg shadow-lg border-l-4 
+                            {{ $transaction['status'] === 'COMPLETED' ? 'border-green-500' : 'border-yellow-500' }}">
+                            <div class="p-4">
+                                <!-- Header -->
+                                <div class="flex justify-between items-start mb-3">
+                                    <div>
+                                        <h3 class="font-semibold text-lg">
+                                            @if($hasOrderDetails)
+                                                Order #{{ substr($order['order']['id'] ?? $transaction['id'], -8) }}
+                                            @else
+                                                Payment #{{ substr($transaction['id'] ?? 'unknown', -8) }}
+                                            @endif
+                                        </h3>
+                                        <p class="text-sm text-gray-600">
+                                            {{ $transaction['source_type'] ?? 'Unknown Source' }}
+                                            @if($hasOrderDetails)
+                                                • {{ $order['order']['state'] ?? '' }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded
+                                        {{ $transaction['status'] === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                        {{ $transaction['status'] ?? 'UNKNOWN' }}
+                                    </span>
+                                </div>
+                                
+                                <!-- Time and Customer -->
+                                <div class="mb-3">
+                                    <p class="text-sm text-gray-500">
+                                        {{ \Carbon\Carbon::parse($transaction['created_at'] ?? '')->setTimezone('America/New_York')->format('M j, g:i A') }} EST
+                                    </p>
+                                    @if($transaction['customer_id'] ?? false)
+                                        <p class="text-sm text-blue-600 mt-1">
+                                            Customer: {{ substr($transaction['customer_id'], -8) }}
+                                        </p>
+                                    @endif
+                                </div>
+
+                                <!-- Order Items -->
+                                @if($hasOrderDetails && count($lineItems) > 0)
+                                    <div class="space-y-2 mb-4">
+                                        <h4 class="font-medium text-gray-700 border-b pb-1">Items:</h4>
+                                        @foreach($lineItems as $item)
+                                            <div class="flex justify-between items-start py-2 border-b border-gray-100">
+                                                <div class="flex-1">
+                                                    <div class="flex items-start">
+                                                        <span class="font-medium bg-gray-100 px-2 py-1 rounded text-sm mr-2">
+                                                            {{ $item['quantity'] ?? 1 }}x
+                                                        </span>
+                                                        <div class="flex-1">
+                                                            <div class="font-medium text-gray-800">{{ $item['name'] ?? 'Unknown Item' }}</div>
+                                                            @if($item['description'] ?? false)
+                                                                <div class="text-xs text-gray-600 mt-1">{{ $item['description'] }}</div>
+                                                            @endif
+                                                            @if($item['variation_name'] ?? false)
+                                                                <div class="text-sm text-gray-600">({{ $item['variation_name'] }})</div>
+                                                            @endif
+                                                            @if($item['note'] ?? false)
+                                                                <div class="text-sm text-red-600 mt-1">Note: {{ $item['note'] }}</div>
+                                                            @endif
+                                                            @if(($item['total_money']['amount'] ?? 0) > 0)
+                                                                <div class="text-sm text-green-600">
+                                                                    ${{ number_format(($item['total_money']['amount'] ?? 0) / 100, 2) }}
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <!-- No order details available -->
+                                    <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                                        <p class="text-yellow-800 text-sm">
+                                            <span class="font-medium">No order details available</span><br>
+                                            <span class="text-xs">Payment only - no item information</span>
+                                        </p>
+                                    </div>
+                                @endif
+
+                                <!-- Payment Summary -->
+                                <div class="space-y-2 mb-4">
+                                    <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                                        <span class="font-medium">Amount:</span>
+                                        <span class="font-semibold">
+                                            ${{ number_format(($transaction['amount_money']['amount'] ?? 0) / 100, 2) }}
+                                        </span>
+                                    </div>
+                                    @if($transaction['tip_money']['amount'] ?? 0 > 0)
+                                        <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                                            <span class="font-medium text-sm text-green-600">Tip:</span>
+                                            <span class="text-sm text-green-600 font-semibold">
+                                                +${{ number_format(($transaction['tip_money']['amount'] ?? 0) / 100, 2) }}
+                                            </span>
+                                        </div>
+                                    @endif
+                                    @if($transaction['processing_fee']['amount'] ?? 0 > 0)
+                                        <div class="flex justify-between items-center py-1 border-b border-gray-100">
+                                            <span class="font-medium text-sm text-red-600">Fee:</span>
+                                            <span class="text-sm text-red-600 font-semibold">
+                                                -${{ number_format(($transaction['processing_fee']['amount'] ?? 0) / 100, 2) }}
+                                            </span>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <!-- Net Amount -->
+                                <div class="pt-3 border-t border-gray-200">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold text-gray-700">Net Amount:</span>
+                                        <span class="font-bold text-lg text-blue-600">
+                                            @php
+                                                $amount = ($transaction['amount_money']['amount'] ?? 0) / 100;
+                                                $tip = ($transaction['tip_money']['amount'] ?? 0) / 100;
+                                                $fee = ($transaction['processing_fee']['amount'] ?? 0) / 100;
+                                                $net = $amount + $tip - $fee;
+                                            @endphp
+                                            ${{ number_format($net, 2) }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Order Note if available -->
+                                @if($order && ($order['order']['note'] ?? false))
+                                    <div class="mt-3 pt-3 border-t border-gray-200">
+                                        <p class="text-sm text-red-600">
+                                            <span class="font-medium">Order Note:</span> {{ $order['order']['note'] }}
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Statistics for Transactions -->
+            @php
+                $totalAmount = collect($transactions)->sum(function($t) { 
+                    return ($t['payment']['amount_money']['amount'] ?? 0) / 100; 
+                });
+                $totalTips = collect($transactions)->sum(function($t) { 
+                    return ($t['payment']['tip_money']['amount'] ?? 0) / 100; 
+                });
+                $completedCount = collect($transactions)->where('payment.status', 'COMPLETED')->count();
+                $ordersWithDetails = collect($transactions)->filter(function($t) {
+                    return !empty($t['line_items']);
+                })->count();
+            @endphp
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600">{{ count($transactions) }}</div>
+                    <div class="text-sm text-gray-600">Total Transactions</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600">${{ number_format($totalAmount, 2) }}</div>
+                    <div class="text-sm text-gray-600">Total Sales</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-600">{{ $ordersWithDetails }}</div>
+                    <div class="text-sm text-gray-600">Orders with Details</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 text-center">
+                    <div class="text-2xl font-bold text-yellow-600">${{ number_format($totalTips, 2) }}</div>
+                    <div class="text-sm text-gray-600">Total Tips</div>
+                </div>
+            </div>
+
+        @else
+            <!-- No Data Message -->
+            <div class="text-center py-12">
+                <div class="text-gray-400 mb-4">
+                    <svg class="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-medium text-gray-900 mb-2">No Data Found</h3>
+                <p class="text-gray-500 mb-4">No orders or transactions found in the last 24 hours.</p>
+                <p class="text-sm text-gray-400 mb-6">
+                    This could mean there are no recent orders, or there might be an issue with the Square connection.
+                </p>
+                
+                <div class="space-x-4">
+                    <a href="{{ route('kitchen.index') }}" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">
+                        Refresh Page
+                    </a>
+                    <a href="/debug-kitchen-orders" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600" target="_blank">
+                        Debug Data
+                    </a>
+                </div>
+            </div>
+        @endif
+    </div>
+
+    <footer class="mt-12 text-center text-gray-500">
+        <p>&copy; {{ now()->setTimezone('America/New_York')->format('Y') }} Campus Cafe Kitchen Display</p>
+        <p class="text-sm">Auto-refreshes every 30 seconds • 
+            @if(count($orders) > 0)
+                Showing {{ count($orders) }} orders
+            @elseif(count($transactions) > 0)
+                Showing {{ count($transactions) }} transactions
+            @else
+                No data available
+            @endif
+        </p>
+    </footer>
+</body>
+</html>

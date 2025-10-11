@@ -37,6 +37,10 @@ Route::get('/kitchen', [KitchenController::class, 'index'])->name('kitchen.index
 Route::post('/kitchen/refresh', [KitchenController::class, 'refresh'])->name('kitchen.refresh');
 Route::post('/kitchen/clear-cache', [KitchenController::class, 'clearCache'])->name('kitchen.clear-cache');
 
+Route::get('/kitchen/orders', [KitchenController::class, 'getOrders'])->name('kitchen.orders');
+Route::post('/kitchen/orders/{orderId}/update', [KitchenController::class, 'updateOrder'])->name('kitchen.orders.update');
+
+
 // Product cost management routes
 Route::prefix('product-costs')->group(function () {
     Route::get('/', [ProductCostController::class, 'index'])->name('product-costs.index');
@@ -135,4 +139,78 @@ Route::get('/storage-link', function () {
 // Fallback route for 404 pages
 Route::fallback(function () {
     return response()->view('errors.404', [], 404);
+});
+
+
+Route::get('/debug-square', function () {
+    $squareService = app(\App\Services\SquareService::class);
+    
+    // Test 1: Check location
+    $location = $squareService->getLocation();
+    
+    // Test 2: Check recent transactions (last 30 days)
+    $startDate = now()->subDays(30)->format('Y-m-d');
+    $endDate = now()->format('Y-m-d');
+    $transactions = $squareService->getTransactions($startDate, $endDate);
+    
+    // Test 3: Check catalog
+    $catalog = $squareService->getCatalog();
+    
+    return [
+        'square_environment' => config('services.square.environment', 'not set'),
+        'location' => $location,
+        'transactions_count' => count($transactions['payments'] ?? []),
+        'catalog_items_count' => count($catalog['objects'] ?? []),
+        'test_dates' => [
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'current_year' => now()->year
+        ],
+        'sample_transactions' => array_slice($transactions['payments'] ?? [], 0, 3)
+    ];
+});
+
+
+Route::get('/debug-dates', function () {
+    return [
+        'server_time' => now()->format('Y-m-d H:i:s'),
+        'server_timezone' => config('app.timezone'),
+        'kitchen_start_date' => now()->subHours(24)->toISOString(),
+        'kitchen_end_date' => now()->toISOString(),
+        'current_year' => now()->year,
+        'environment' => config('services.square.environment'),
+        'square_base_url' => config('services.square.base_url')
+    ];
+});
+
+Route::get('/debug-kitchen-orders', function () {
+    $squareService = app(\App\Services\SquareService::class);
+    
+    // Test 1: Get orders using the kitchen method
+    $kitchenOrders = $squareService->getKitchenOrders(24);
+    
+    // Test 2: Get orders using the detailed orders method
+    $detailedOrders = $squareService->getDetailedOrders(now()->subDays(1)->format('Y-m-d'), now()->format('Y-m-d'));
+    
+    // Test 3: Get transactions
+    $transactions = $squareService->getTransactions(now()->subDays(1)->format('Y-m-d'), now()->format('Y-m-d'));
+    
+    return response()->json([
+        'kitchen_orders_method' => [
+            'count' => count($kitchenOrders),
+            'sample' => array_slice($kitchenOrders, 0, 3)
+        ],
+        'detailed_orders_method' => [
+            'count' => count($detailedOrders['orders'] ?? []),
+            'sample' => array_slice($detailedOrders['orders'] ?? [], 0, 3)
+        ],
+        'transactions_method' => [
+            'count' => count($transactions['payments'] ?? []),
+            'sample' => array_slice($transactions['payments'] ?? [], 0, 3)
+        ],
+        'date_range' => [
+            'start' => now()->subDays(1)->format('Y-m-d H:i:s'),
+            'end' => now()->format('Y-m-d H:i:s')
+        ]
+    ]);
 });

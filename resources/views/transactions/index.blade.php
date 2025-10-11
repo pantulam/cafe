@@ -1,229 +1,181 @@
 @extends('layouts.app')
 
-@section('title', 'Square Transactions')
-
 @section('content')
 <div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-8">Square Transactions</h1>
-    
+    <h1 class="text-3xl font-bold mb-6">Transactions</h1>
+
     <!-- Date Filter Form -->
-    <form method="GET" action="{{ route('transactions.index') }}" class="mb-6 bg-white p-6 rounded-lg shadow">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <form method="GET" action="{{ route('transactions.index') }}" class="flex gap-4 items-end">
             <div>
-                <label class="block text-sm font-medium text-gray-700">Start Date (EST)</label>
-                <input type="date" name="start_date" value="{{ $startDate ?? request('start_date', \Carbon\Carbon::today('America/New_York')->format('Y-m-d')) }}" 
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <input type="date" name="start_date" id="start_date" 
+                       value="{{ $startDate }}" class="border border-gray-300 rounded-md px-3 py-2">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">End Date (EST)</label>
-                <input type="date" name="end_date" value="{{ $endDate ?? request('end_date', \Carbon\Carbon::today('America/New_York')->format('Y-m-d')) }}" 
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <input type="date" name="end_date" id="end_date" 
+                       value="{{ $endDate }}" class="border border-gray-300 rounded-md px-3 py-2">
             </div>
-            <div class="flex items-end">
-                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
-                    Filter Transactions
-                </button>
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">
+                Filter
+            </button>
+            <a href="{{ route('transactions.index') }}" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">
+                Reset
+            </a>
+        </form>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold">Payments ({{ count($transactions) }})</h2>
+            <p class="text-sm text-gray-600">Showing payments from {{ $startDate }} to {{ $endDate }}</p>
+        </div>
+
+        @if(count($transactions) > 0)
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ID
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Created At
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Source Type
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach($transactions as $transaction)
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ substr($transaction['id'] ?? '', -8) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    ${{ number_format(($transaction['amount_money']['amount'] ?? 0) / 100, 2) }}
+                                    {{ $transaction['amount_money']['currency'] ?? 'USD' }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {{ $transaction['status'] === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                        {{ $transaction['status'] ?? 'UNKNOWN' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ \Carbon\Carbon::parse($transaction['created_at'] ?? '')->format('M j, Y g:i A') }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ $transaction['source_type'] ?? 'N/A' }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
-        </div>
-        <div class="mt-2 text-sm text-gray-500">
-            <p>All dates and times displayed in EST timezone</p>
-        </div>
-    </form>
+        @else
+            <div class="px-6 py-8 text-center">
+                <p class="text-gray-500 text-lg">
 
-    @if(session('success'))
-        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {{ session('error') }}
-        </div>
-    @endif
-
-    <!-- Cache Status -->
-    <div class="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div class="flex justify-between items-center">
-            <div>
-                <h3 class="text-lg font-semibold text-blue-800">Cache Status</h3>
-                <p class="text-sm text-blue-600">
-                    @php
-                        $today = \Carbon\Carbon::today('America/New_York')->format('Y-m-d');
-                        $isToday = ($startDate ?? '') === $today || ($endDate ?? '') === $today;
-                    @endphp
-                    @if($isToday)
-                        <span class="font-medium">Live Data</span> - Today's transactions are always fetched fresh
-                    @else
-                        <span class="font-medium">Cached Data</span> - Historical data is cached for 24 hours
-                    @endif
-                </p>
-            </div>
-            <div class="space-x-2">
-                <a href="{{ route('cache.pre-cache') }}" 
-                   class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
-                    Pre-cache Week
+@if(count($transactions) > 0)
+    <!-- Your existing transactions table -->
+@else
+    <div class="px-6 py-8 text-center">
+        <p class="text-gray-500 text-lg">No transactions found for the selected date range.</p>
+        <p class="text-gray-400 text-sm mt-2">Try selecting different dates or check if you have recent payments in your Square account.</p>
+        
+        <!-- Suggested date ranges -->
+        <div class="mt-4 space-y-2">
+            <p class="text-sm text-gray-600">Try these date ranges:</p>
+            <div class="flex justify-center space-x-4">
+                <a href="{{ route('transactions.index', ['start_date' => \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d'), 'end_date' => \Carbon\Carbon::now()->format('Y-m-d')]) }}" 
+                   class="bg-blue-100 text-blue-700 px-3 py-1 rounded text-sm hover:bg-blue-200">
+                    This Month
                 </a>
-                <a href="{{ route('cache.clear') }}" 
-                   class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
-                   onclick="return confirm('Clear all caches? This will force fresh API calls.')">
-                    Clear Cache
+                <a href="{{ route('transactions.index', ['start_date' => \Carbon\Carbon::now()->subDays(7)->format('Y-m-d'), 'end_date' => \Carbon\Carbon::now()->format('Y-m-d')]) }}" 
+                   class="bg-green-100 text-green-700 px-3 py-1 rounded text-sm hover:bg-green-200">
+                    Last 7 Days
+                </a>
+                <a href="{{ route('transactions.index', ['start_date' => \Carbon\Carbon::now()->subDays(30)->format('Y-m-d'), 'end_date' => \Carbon\Carbon::now()->format('Y-m-d')]) }}" 
+                   class="bg-purple-100 text-purple-700 px-3 py-1 rounded text-sm hover:bg-purple-200">
+                    Last 30 Days
                 </a>
             </div>
         </div>
     </div>
+@endif
 
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        @if(isset($transactions) && count($transactions) > 0)
-            <div class="px-6 py-4 bg-green-50 border-b">
-                <p class="text-green-800">
-                    Found {{ count($transactions) }} transactions for 
-                    {{ isset($startDate) ? \Carbon\Carbon::parse($startDate)->format('M j, Y') : '' }}
-                    @if(isset($endDate) && $endDate !== $startDate)
-                        to {{ \Carbon\Carbon::parse($endDate)->format('M j, Y') }}
-                    @endif
-                    (EST timezone)
-                </p>
+
+
+</p>
+                <p class="text-gray-400 text-sm mt-2">Try selecting different dates or check if you have recent payments in your Square account.</p>
             </div>
         @endif
-        
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date (EST)</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time (EST)</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                @if(isset($transactions) && count($transactions) > 0)
-                    @foreach($transactions as $payment)
-                        @php
-                            $squareService = app(\App\Services\SquareService::class);
-                            $estTime = $squareService->formatESTTime($payment['created_at'] ?? '');
-                            $estDate = $squareService->formatESTTime($payment['created_at'] ?? '', 'M j, Y');
-                            $estTimeOnly = $squareService->formatESTTime($payment['created_at'] ?? '', 'g:i A');
-                            
-                            $amount = isset($payment['amount_money']) ? $payment['amount_money']['amount'] / 100 : 0;
-                            $cost = $payment['total_cost'] ?? 0;
-                            $profit = $amount - $cost;
-                            $profitPercentage = $amount > 0 ? ($profit / $amount) * 100 : 0;
-                        @endphp
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ substr($payment['id'] ?? '', 0, 8) }}...
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ $estDate }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ $estTimeOnly }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                ${{ number_format($amount, 2) }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                ${{ number_format($cost, 2) }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <span class="{{ $profit >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                    ${{ number_format($profit, 2) }}
-                                </span>
-                                @if($amount > 0)
-                                    <br>
-                                    <span class="text-xs {{ $profitPercentage >= 0 ? 'text-green-500' : 'text-red-500' }}">
-                                        ({{ number_format($profitPercentage, 1) }}%)
-                                    </span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                @php
-                                    $status = $payment['status'] ?? 'UNKNOWN';
-                                    $statusColor = $status === 'COMPLETED' ? 'green' : 
-                                                 ($status === 'APPROVED' ? 'blue' : 
-                                                 ($status === 'PENDING' ? 'yellow' : 'gray'));
-                                @endphp
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                    bg-{{ $statusColor }}-100 text-{{ $statusColor }}-800">
-                                    {{ $status }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {{ $payment['source_type'] ?? 'N/A' }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <a href="{{ route('transactions.show', $payment['id'] ?? '') }}" 
-                                   class="text-blue-600 hover:text-blue-900">View Details</a>
-                            </td>
-                        </tr>
-                    @endforeach
-                @else
-                    <tr>
-                        <td colspan="9" class="px-6 py-4 text-center text-sm text-gray-500">
-                            <div class="space-y-2">
-                                <p>No transactions found for the selected period.</p>
-                                <p class="text-xs text-gray-400">
-                                    @if(isset($startDate) && isset($endDate))
-                                        Date range: {{ \Carbon\Carbon::parse($startDate)->format('M j, Y') }} 
-                                        @if($endDate !== $startDate)
-                                            to {{ \Carbon\Carbon::parse($endDate)->format('M j, Y') }}
-                                        @endif
-                                        (EST)
-                                    @endif
-                                </p>
-                            </div>
-                        </td>
-                    </tr>
-                @endif
-            </tbody>
-        </table>
     </div>
 
-    <!-- Summary Section -->
-    @if(isset($transactions) && count($transactions) > 0)
-        @php
-            $totalAmount = 0;
-            $totalCost = 0;
-            $totalProfit = 0;
-            
-            foreach ($transactions as $payment) {
-                $amount = isset($payment['amount_money']) ? $payment['amount_money']['amount'] / 100 : 0;
-                $cost = $payment['total_cost'] ?? 0;
-                $totalAmount += $amount;
-                $totalCost += $cost;
-                $totalProfit += ($amount - $cost);
-            }
-            
-            $totalProfitPercentage = $totalAmount > 0 ? ($totalProfit / $totalAmount) * 100 : 0;
-        @endphp
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-700">Total Revenue</h3>
-                <p class="text-2xl font-bold text-gray-900">${{ number_format($totalAmount, 2) }}</p>
-            </div>
-            <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-700">Total Cost</h3>
-                <p class="text-2xl font-bold text-gray-900">${{ number_format($totalCost, 2) }}</p>
-            </div>
-            <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-700">Total Profit</h3>
-                <p class="text-2xl font-bold {{ $totalProfit >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                    ${{ number_format($totalProfit, 2) }}
-                </p>
-            </div>
-            <div class="bg-white rounded-lg shadow p-4">
-                <h3 class="text-lg font-semibold text-gray-700">Profit Margin</h3>
-                <p class="text-2xl font-bold {{ $totalProfitPercentage >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                    {{ number_format($totalProfitPercentage, 1) }}%
-                </p>
-            </div>
+    <!-- Orders Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden mt-8">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold">Orders ({{ count($orders) }})</h2>
         </div>
-    @endif
+
+        @if(count($orders) > 0)
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Order ID
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                State
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Total
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Created At
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach($orders as $order)
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ substr($order['id'] ?? '', -8) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {{ $order['state'] === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
+                                           ($order['state'] === 'OPEN' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800') }}">
+                                        {{ $order['state'] ?? 'UNKNOWN' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    ${{ number_format(($order['total_money']['amount'] ?? 0) / 100, 2) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ \Carbon\Carbon::parse($order['created_at'] ?? '')->format('M j, Y g:i A') }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <div class="px-6 py-8 text-center">
+                <p class="text-gray-500">No orders found for the selected date range.</p>
+            </div>
+        @endif
+    </div>
 </div>
 @endsection
