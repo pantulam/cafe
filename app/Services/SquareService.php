@@ -80,111 +80,111 @@ class SquareService
         }
     }
 
-    public function getKitchenOrders($hours = 24)
-    {
-        try {
-            // Ensure we're using current dates, not future dates
-            $startDate = now()->subHours($hours);
-            $endDate = now();
+public function getKitchenOrders($hours = null)
+{
+    try {
+        // Use today's date range (start of day to now)
+        $startDate = now()->startOfDay();
+        $endDate = now();
 
-            Log::info('=== KITCHEN ORDERS DEBUG ===', [
-                'current_time' => now()->format('Y-m-d H:i:s'),
-                'current_year' => now()->year,
-                'start_date' => $startDate->format('Y-m-d H:i:s'),
-                'end_date' => $endDate->format('Y-m-d H:i:s'),
-                'hours_parameter' => $hours
+        Log::info('=== KITCHEN ORDERS DEBUG ===', [
+            'current_time' => now()->format('Y-m-d H:i:s'),
+            'current_year' => now()->year,
+            'start_date' => $startDate->format('Y-m-d H:i:s'),
+            'end_date' => $endDate->format('Y-m-d H:i:s'),
+            'filter' => 'TODAY_ONLY'
+        ]);
+
+        $query = [
+            'start_date' => $startDate->toISOString(),
+            'end_date' => $endDate->toISOString(),
+        ];
+
+        Log::info('Square API Request - Kitchen Orders (Today):', [
+            'query' => $query,
+            'base_url' => $this->baseUrl
+        ]);
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->accessToken,
+            'Content-Type' => 'application/json',
+        ])->get($this->baseUrl . '/v2/orders', $query);
+
+        if ($response->successful()) {
+            $data = $response->json();
+            
+            Log::info('Square API Response - Kitchen Orders (Today):', [
+                'http_status' => $response->status(),
+                'total_orders_in_response' => count($data['orders'] ?? [])
             ]);
 
-            $query = [
-                'start_date' => $startDate->toISOString(),
-                'end_date' => $endDate->toISOString(),
-            ];
-
-            Log::info('Square API Request - Kitchen Orders:', [
-                'query' => $query,
-                'base_url' => $this->baseUrl
-            ]);
-
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->accessToken,
-                'Content-Type' => 'application/json',
-            ])->get($this->baseUrl . '/v2/orders', $query);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                Log::info('Square API Response - Kitchen Orders:', [
-                    'http_status' => $response->status(),
-                    'total_orders_in_response' => count($data['orders'] ?? [])
-                ]);
-
-                // Filter and format orders for kitchen display
-                $kitchenOrders = [];
-                if (isset($data['orders']) && is_array($data['orders'])) {
-                    foreach ($data['orders'] as $order) {
-                        // Include ALL order states: OPEN, IN_PROGRESS, COMPLETED
-                        $lineItems = [];
-                        if (isset($order['line_items']) && is_array($order['line_items'])) {
-                            foreach ($order['line_items'] as $item) {
-                                $lineItems[] = [
-                                    'name' => $item['name'] ?? 'Unknown Item',
-                                    'quantity' => $item['quantity'] ?? 1,
-                                    'note' => $item['note'] ?? '',
-                                    'variation_name' => $item['variation_name'] ?? '',
-                                    'total_money' => $item['total_money'] ?? ['amount' => 0, 'currency' => 'USD'],
-                                    'description' => $this->getItemDescription($item)
-                                ];
-                            }
+            // Filter and format orders for kitchen display
+            $kitchenOrders = [];
+            if (isset($data['orders']) && is_array($data['orders'])) {
+                foreach ($data['orders'] as $order) {
+                    // Include ALL order states: OPEN, IN_PROGRESS, COMPLETED
+                    $lineItems = [];
+                    if (isset($order['line_items']) && is_array($order['line_items'])) {
+                        foreach ($order['line_items'] as $item) {
+                            $lineItems[] = [
+                                'name' => $item['name'] ?? 'Unknown Item',
+                                'quantity' => $item['quantity'] ?? 1,
+                                'note' => $item['note'] ?? '',
+                                'variation_name' => $item['variation_name'] ?? '',
+                                'total_money' => $item['total_money'] ?? ['amount' => 0, 'currency' => 'USD'],
+                                'description' => $this->getItemDescription($item)
+                            ];
                         }
-
-                        $kitchenOrders[] = [
-                            'id' => $order['id'] ?? 'unknown',
-                            'created_at' => $order['created_at'] ?? '',
-                            'line_items' => $lineItems,
-                            'state' => $order['state'] ?? 'UNKNOWN',
-                            'customer_name' => $this->getCustomerNameFromOrder($order),
-                            'note' => $order['note'] ?? '',
-                            'total_money' => $order['total_money'] ?? ['amount' => 0, 'currency' => 'USD'],
-                            'source' => $order['source'] ?? ['name' => 'Unknown'],
-                            'completed_at' => $order['closed_at'] ?? null
-                        ];
                     }
+
+                    $kitchenOrders[] = [
+                        'id' => $order['id'] ?? 'unknown',
+                        'created_at' => $order['created_at'] ?? '',
+                        'line_items' => $lineItems,
+                        'state' => $order['state'] ?? 'UNKNOWN',
+                        'customer_name' => $this->getCustomerNameFromOrder($order),
+                        'note' => $order['note'] ?? '',
+                        'total_money' => $order['total_money'] ?? ['amount' => 0, 'currency' => 'USD'],
+                        'source' => $order['source'] ?? ['name' => 'Unknown'],
+                        'completed_at' => $order['closed_at'] ?? null
+                    ];
                 }
-
-                // Sort orders: active first, then completed by most recent
-                usort($kitchenOrders, function($a, $b) {
-                    $stateOrder = ['OPEN' => 1, 'IN_PROGRESS' => 2, 'COMPLETED' => 3, 'CANCELED' => 4];
-                    $aState = $stateOrder[$a['state']] ?? 5;
-                    $bState = $stateOrder[$b['state']] ?? 5;
-                    
-                    if ($aState !== $bState) {
-                        return $aState - $bState;
-                    }
-                    
-                    // If same state, sort by creation date (newest first)
-                    return strtotime($b['created_at']) - strtotime($a['created_at']);
-                });
-
-                Log::info('Kitchen Orders Final Results:', [
-                    'total_orders' => count($kitchenOrders),
-                    'by_state' => array_count_values(array_column($kitchenOrders, 'state'))
-                ]);
-                
-                return $kitchenOrders;
-            } else {
-                Log::error('Square Kitchen Orders API Error:', [
-                    'status_code' => $response->status(),
-                    'response_body' => $response->body(),
-                    'request_query' => $query
-                ]);
-                return [];
             }
-        } catch (\Exception $e) {
-            Log::error('Exception fetching kitchen orders: ' . $e->getMessage());
-            Log::error('Exception trace: ' . $e->getTraceAsString());
+
+            // Sort orders: active first, then completed by most recent
+            usort($kitchenOrders, function($a, $b) {
+                $stateOrder = ['OPEN' => 1, 'IN_PROGRESS' => 2, 'COMPLETED' => 3, 'CANCELED' => 4];
+                $aState = $stateOrder[$a['state']] ?? 5;
+                $bState = $stateOrder[$b['state']] ?? 5;
+                
+                if ($aState !== $bState) {
+                    return $aState - $bState;
+                }
+                
+                // If same state, sort by creation date (newest first)
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+
+            Log::info('Kitchen Orders Final Results (Today):', [
+                'total_orders' => count($kitchenOrders),
+                'by_state' => array_count_values(array_column($kitchenOrders, 'state'))
+            ]);
+            
+            return $kitchenOrders;
+        } else {
+            Log::error('Square Kitchen Orders API Error:', [
+                'status_code' => $response->status(),
+                'response_body' => $response->body(),
+                'request_query' => $query
+            ]);
             return [];
         }
+    } catch (\Exception $e) {
+        Log::error('Exception fetching kitchen orders: ' . $e->getMessage());
+        Log::error('Exception trace: ' . $e->getTraceAsString());
+        return [];
     }
+}
 
     /**
      * Get item description from catalog data

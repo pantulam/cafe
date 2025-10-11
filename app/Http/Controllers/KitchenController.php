@@ -16,37 +16,42 @@ class KitchenController extends Controller
         $this->squareService = $squareService;
     }
 
-public function index()
-{
-    try {
-        // Get kitchen orders for last 24 hours
-        $orders = $this->squareService->getKitchenOrders(24);
-        
-        // If no orders found, get transactions with order details
-        $transactions = [];
-        if (empty($orders)) {
-            $transactions = $this->squareService->getTransactionsWithOrders(
-                now()->subDays(1)->format('Y-m-d'), 
-                now()->format('Y-m-d')
-            );
+    public function index()
+    {
+        try {
+            // Get kitchen orders for TODAY only
+            $orders = $this->squareService->getKitchenOrders();
             
-            Log::info('Kitchen Controller - Using transactions with orders:', [
-                'transactions_count' => count($transactions)
+            // If no orders found, try to get today's transactions as fallback
+            $transactions = [];
+            if (empty($orders)) {
+                $transactionsData = $this->squareService->getTransactionsWithOrders(
+                    now()->startOfDay()->format('Y-m-d'), 
+                    now()->format('Y-m-d')
+                );
+                $transactions = $transactionsData;
+                
+                Log::info('Kitchen Controller - Using today\'s transactions as fallback:', [
+                    'transactions_count' => count($transactions)
+                ]);
+            }
+
+            Log::info('Kitchen Controller - Today\'s Results:', [
+                'orders_count' => count($orders),
+                'transactions_count' => count($transactions),
+                'current_time' => now()->format('Y-m-d H:i:s'),
+                'date_range' => [
+                    'start' => now()->startOfDay()->format('Y-m-d H:i:s'),
+                    'end' => now()->format('Y-m-d H:i:s')
+                ]
             ]);
+
+            return view('kitchen.index', compact('orders', 'transactions'));
+        } catch (\Exception $e) {
+            Log::error('Kitchen Controller Error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to fetch kitchen data: ' . $e->getMessage());
         }
-
-        Log::info('Kitchen Controller - Results:', [
-            'orders_count' => count($orders),
-            'transactions_count' => count($transactions),
-            'current_time' => now()->format('Y-m-d H:i:s')
-        ]);
-
-        return view('kitchen.index', compact('orders', 'transactions'));
-    } catch (\Exception $e) {
-        Log::error('Kitchen Controller Error: ' . $e->getMessage());
-        return redirect()->back()->with('error', 'Failed to fetch kitchen data: ' . $e->getMessage());
     }
-}
 
     public function updateOrder(Request $request, $orderId)
     {
@@ -70,24 +75,24 @@ public function index()
     public function getOrders()
     {
         try {
-            $orders = $this->squareService->getKitchenOrders(24);
+            $orders = $this->squareService->getKitchenOrders();
             
-            // Fallback to transactions if no orders
+            // Fallback to today's transactions if no orders
             $transactions = [];
             if (empty($orders)) {
-                $transactionsData = $this->squareService->getTransactions(
-                    now()->subDays(1)->format('Y-m-d'), 
+                $transactions = $this->squareService->getTransactionsWithOrders(
+                    now()->startOfDay()->format('Y-m-d'), 
                     now()->format('Y-m-d')
                 );
-                $transactions = $transactionsData['payments'] ?? [];
             }
             
             return response()->json([
                 'success' => true,
                 'orders' => $orders,
                 'transactions' => $transactions,
-                'last_updated' => now()->format('M j, Y g:i A'),
-                'count' => count($orders) + count($transactions)
+                'last_updated' => now()->setTimezone('America/New_York')->format('M j, Y g:i A') . ' EST',
+                'count' => count($orders) + count($transactions),
+                'date_range' => 'Today (' . now()->setTimezone('America/New_York')->format('M j, Y') . ')'
             ]);
         } catch (\Exception $e) {
             Log::error('Kitchen AJAX Error: ' . $e->getMessage());
